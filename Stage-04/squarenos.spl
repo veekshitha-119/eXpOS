@@ -1,0 +1,9 @@
+alias value R0;
+value=1;
+alias sum R1;
+sum=0;
+while(value<=20) do
+  sum=sum+(value*value);
+  value=value+1;
+endwhile;
+print sum;
