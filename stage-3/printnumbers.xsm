@@ -1,0 +1,12 @@
+MOV R0,1
+MOV R1,21
+loop:
+MOV R3,R0
+EQ R3,R1
+JNZ R3,target
+PORT P1,R0
+OUT
+INR R0
+JMP loop
+target:
+HALT
