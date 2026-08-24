@@ -1,0 +1,30 @@
+// Save User SP into UPTR
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+// Switch SP to Kernel Stack
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 - 1;
+
+// Save user context
+backup;
+
+breakpoint;
+//pid of process that acquired the terminal
+alias reqPID R0;
+reqPID = [TERMINAL_STATUS_TABLE+1];
+
+[PROCESS_TABLE+reqPID*16+8]=P0;
+multipush(R0,R1);
+R1=9;
+R2=reqPID;
+call MOD_0;
+multipop(R0,R1);
+
+// Restore user context
+restore;
+
+// Switch back to User Stack
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+
+breakpoint;
+// Return to user mode
+ireturn;
