@@ -1,0 +1,13 @@
+int main()
+{
+decl
+	str string;
+    int temp;
+enddecl
+begin
+	temp=exposcall("Write",-2,"Enter FName");
+    temp=exposcall("Read",-1,string);
+    temp=exposcall("Exec",string);
+	return 0;
+end
+}
