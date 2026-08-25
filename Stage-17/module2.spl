@@ -8,6 +8,7 @@ call MOD_5;
 multipop(R1);
 endwhile;
 [SYSTEM_STATUS_TABLE+3]=[SYSTEM_STATUS_TABLE+3]-1;
+[SYSTEM_STATUS_TABLE+2]=[SYSTEM_STATUS_TABLE+2]-1;
 alias i R2;
 i=76;
 while(([MEMORY_FREE_LIST+i]>0)&&(i<128)) do
@@ -17,6 +18,7 @@ endwhile;
 R0=i;
 return ;
 endif;
+//release page
 if(functionNum==2) then
 alias pagenum R2;
 [MEMORY_FREE_LIST+pagenum]=[MEMORY_FREE_LIST+pagenum]-1;
