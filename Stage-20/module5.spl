@@ -1,0 +1,91 @@
+//current exec process
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE+1];
+
+//push BP into Kernel Stack
+SP = SP + 1;
+[SP] = BP;
+
+//save regs of current process
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + currentPID * 16;
+
+//store KPTR,PTBR,PTLR of curr process
+[process_table_entry + 12] = SP % 512;   
+[process_table_entry + 14] = PTBR;       
+[process_table_entry + 15] = PTLR;
+
+alias i R2;
+alias state R3;
+alias newPID R4;
+alias count R5;
+alias newProcessTable R6;
+
+newPID = 0;       // Default: IDLE
+count = 0;
+
+i = currentPID + 1;
+
+// Wrap around
+if(i == 16) then
+    i = 1;
+endif;
+
+while(count < 15) do
+
+    newProcessTable = PROCESS_TABLE + i * 16;
+
+    state = [newProcessTable + 4];
+
+    if(state == READY || state == CREATED) then
+        newPID = i;
+        break;
+    endif;
+
+    i = i + 1;
+
+    // Wrap around
+    if(i == 16) then
+        i = 1;
+    endif;
+
+    count = count + 1;
+
+endwhile;
+
+//PT
+newProcessTable = PROCESS_TABLE + newPID*16;
+//SP=userarea*512+KPTR
+SP = [newProcessTable + 11] * 512
+     + [newProcessTable + 12];
+
+//PTBR and PTLR
+PTBR = [newProcessTable + 14];
+PTLR = [newProcessTable + 15];
+//set curr pid 
+[SYSTEM_STATUS_TABLE + 1] = newPID;
+
+if([newProcessTable + 4] == CREATED) then
+
+    // Set SP to top of user stack
+    SP = [newProcessTable + 13];
+    
+    //set BP
+    BP = [[newProcessTable+11]*512];
+    
+    // Process is now running
+    [newProcessTable + 4] = RUNNING;
+
+    // User mode
+    [newProcessTable + 9] = 0;
+
+    // Start execution
+    ireturn;
+endif;
+
+[newProcessTable + 4] = RUNNING;
+BP = [SP];
+SP=SP-1;
+
+// Return to timer ISR of the new process
+return;
