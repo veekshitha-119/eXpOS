@@ -1,0 +1,81 @@
+alias functionNum R1;
+
+if(functionNum==1) then
+[SYSTEM_STATUS_TABLE+3]=[SYSTEM_STATUS_TABLE+3]+1;
+while([SYSTEM_STATUS_TABLE+2]==0) do
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+4]=WAIT_MEM;
+multipush(R1);
+call MOD_5;
+multipop(R1);
+endwhile;
+[SYSTEM_STATUS_TABLE+3]=[SYSTEM_STATUS_TABLE+3]-1;
+[SYSTEM_STATUS_TABLE+2]=[SYSTEM_STATUS_TABLE+2]-1;
+alias i R2;
+i=76;
+while(([MEMORY_FREE_LIST+i]>0)&&(i<128)) do
+i=i+1;
+endwhile;
+[MEMORY_FREE_LIST+i]=1;
+R0=i;
+return ;
+endif;
+
+//release page
+if(functionNum==2) then
+alias pagenum R2;
+[MEMORY_FREE_LIST+pagenum]=[MEMORY_FREE_LIST+pagenum]-1;
+if([MEMORY_FREE_LIST+pagenum]==0) then
+[SYSTEM_STATUS_TABLE+2]=[SYSTEM_STATUS_TABLE+2]+1;
+endif;
+alias i R3;
+i=1;
+while(i<16) do
+if([PROCESS_TABLE+i*16+4]==WAIT_MEM) then
+[PROCESS_TABLE+i*16+4]=READY;
+endif;
+i=i+1;
+endwhile;
+return ;
+endif;
+
+//Get Code page
+if(functionNum==5) then
+alias blocknum R2;
+alias pid R3;
+alias i R4;
+pid=0;
+while(pid<15) do
+i=4;
+while(i<8) do
+if(([DISK_MAP_TABLE+pid*10+i]==blocknum)&&([PAGE_TABLE_BASE+pid*20+2*i]!=-1)) then
+[MEMORY_FREE_LIST+[PAGE_TABLE_BASE+pid*20+2*i]]=[MEMORY_FREE_LIST+[PAGE_TABLE_BASE+pid*20+2*i]]+1;
+R0=[PAGE_TABLE_BASE+pid*20+2*i];
+return ;
+endif;
+i=i+1;
+endwhile;
+pid=pid+1;
+endwhile;
+multipush(R1,R2,R3,R4);
+R1=1;
+call MOD_2;
+multipop(R1,R2,R3,R4);
+alias pageno R5;
+pageno=R0;
+multipush(R1,R2,R3,R4,R5);
+R1=2;
+R3=pageno;
+R4=blocknum;
+R2=[SYSTEM_STATUS_TABLE+1];
+call MOD_4;
+multipop(R1,R2,R3,R4,R5);
+R0=pageno;
+return ;
+endif;
+
+//release block
+if(functionNum==4) then
+alias blocknum R2;
+[DISK_FREE_LIST+blocknum]=[DISK_FREE_LIST+blocknum]-1;
+return ;
+endif;

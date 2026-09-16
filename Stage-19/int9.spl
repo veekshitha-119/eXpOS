@@ -1,0 +1,149 @@
+alias userSP R0;
+userSP=SP;
+
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 13] = SP;
+SP = [PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] * 512 - 1;
+//set mode flag
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 9;
+
+//retrieve name
+alias physicalPageNum R1;
+alias offset R2;
+alias fileAddr R3;
+physicalPageNum = [PAGE_TABLE_BASE+[SYSTEM_STATUS_TABLE+1]*20 + 2 * ((userSP - 4)/ 512)];
+offset = (userSP - 4) % 512;
+fileAddr = (physicalPageNum * 512) + offset;
+alias name R4;
+name=[fileAddr];
+
+alias i R5;
+alias flag R6;
+
+//search in inode table for the new exec file
+i=0;flag=0;
+while(i<MAX_FILE_NUM) do
+if(name==[INODE_TABLE+i*16+1]&& [INODE_TABLE+i*16]==EXEC) then
+flag=1;
+break;
+endif;
+i=i+1;
+endwhile;
+
+if(flag==0) then
+ alias physicalAddrRetVal R7;
+	physicalAddrRetVal = ([PAGE_TABLE_BASE+[SYSTEM_STATUS_TABLE+1]*20 + 2 * ((userSP - 1) / 512)] * 512) + ((userSP - 1) % 512);
+	[physicalAddrRetVal] = -1;
+//restore SP
+SP = userSP;
+//Reset the MODE FLAG to 0
+[PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 9] = 0;
+//return to user mode
+ireturn;
+endif;
+
+multipush(R0,R1,R2,R3,R4,R5,R6,R7);
+//exit process
+R1=3;
+R2=[SYSTEM_STATUS_TABLE+1];
+call MOD_1;
+multipop(R0,R1,R2,R3,R4,R5,R6,R7);
+alias  userareapg R8;
+userareapg=[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+11];
+[MEMORY_FREE_LIST+userareapg]=[MEMORY_FREE_LIST+userareapg]+1;
+[SYSTEM_STATUS_TABLE+2]=[SYSTEM_STATUS_TABLE+2]-1;
+SP=userareapg*512-1;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+4]=RUNNING;
+[PROCESS_TABLE+[SYSTEM_STATUS_TABLE+1]*16+7]=i;
+
+// Library
+[PTBR + 0] = 63;
+[PTBR + 1] = "0100";
+[PTBR + 2] = 64;
+[PTBR + 3] = "0100";
+
+multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8);
+//Heap
+[PTBR+4] = -1;
+[PTBR+5] = "0000";
+
+[PTBR+6] = -1;
+[PTBR+7] = "0000";
+
+//Stack
+R1=1;
+call MOD_2;
+[PTBR+16] = R0;
+[PTBR+17] = "0110";
+R1=1;
+call MOD_2;
+[PTBR+18] = R0;
+[PTBR+19] = "0110";
+
+multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8);
+
+alias dmtIndex R9;
+alias num R10;
+alias numBlocks R11;
+num=1;
+
+numBlocks = (([INODE_TABLE + i*16 + 2] - 1) / 512) + 1;
+
+dmtIndex=2;
+
+while(dmtIndex<10) do
+
+    if(dmtIndex==0 || dmtIndex==1 ||
+       dmtIndex==2 || dmtIndex==3 ||
+       dmtIndex==8 || dmtIndex==9) then
+
+        [DISK_MAP_TABLE+[SYSTEM_STATUS_TABLE+1]*10+dmtIndex] = -1;
+
+    else
+        // is within the file's actual block count, else mark unused
+        if((dmtIndex - 4) < numBlocks) then
+
+            [DISK_MAP_TABLE+[SYSTEM_STATUS_TABLE+1]*10+dmtIndex] =
+                [INODE_TABLE+i*16+dmtIndex+4];
+
+        else
+
+            [DISK_MAP_TABLE+[SYSTEM_STATUS_TABLE+1]*10+dmtIndex] = -1;
+
+        endif;
+
+    endif;
+
+    dmtIndex=dmtIndex+1;
+
+endwhile;
+
+multipush(R0, R1, R2, R3, R4, R5, R6, R7, R8, R9,R10,R11);
+
+R1=5;
+R2=[INODE_TABLE+i*16+8];
+call MOD_2;
+[PTBR+8]=R0;
+[PTBR+9]="0100";
+multipop(R0, R1, R2, R3, R4, R5, R6, R7, R8, R9,R10,R11); 
+//code
+while(num<4) do
+[PTBR+8+2*num]=-1;
+[PTBR+9+2*num]="0000";
+num=num+1;
+endwhile;
+
+
+
+dmtIndex=1;
+
+while(dmtIndex<9) do
+    [([PROCESS_TABLE + [SYSTEM_STATUS_TABLE + 1] * 16 + 11] + 1) * 512
+       - 2 * dmtIndex] = -1;
+
+    dmtIndex=dmtIndex+1;
+endwhile;
+
+[[PTBR + 16] * 512] = [[PTBR + 8] * 512 + 1];
+SP=8*512;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 9] = 0;
+ireturn;
