@@ -1,0 +1,72 @@
+alias userSP R0;
+alias currPID R1;
+userSP=SP;
+currPID=[SYSTEM_STATUS_TABLE+1];
+alias syscall R2;
+syscall=[[PAGE_TABLE_BASE+currPID*20 + 2 * ((userSP - 5)/ 512)]*512+((userSP - 5) % 512)];
+
+//save SP in UPTR
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = userSP;
+
+//assign SP
+SP=[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11]*512-1;
+[PROCESS_TABLE+currPID*16+9]=syscall;
+
+if(syscall==17) then
+alias i R3;
+alias table R4;
+table=(([PROCESS_TABLE+currPID*16+11]+1)*512)-16;
+i=0;
+while((i<8)&&([table+2*i]!=-1)) do
+i=i+1;
+endwhile;
+if(i==8) then
+[[PTBR + 2*(userSP-1)/512]*512 + (userSP-1)%512] = -1; 
+SP=[PROCESS_TABLE+currPID*16+13];
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;
+[table+2*i]=1;
+multipush(R0,R1,R2,R3,R4);
+R2=currPID;
+R1=6;
+call MOD_0;
+R6=R0;
+multipop(R0,R1,R2,R3,R4);
+if(R6==-1) then
+[[PTBR + 2*(userSP-1)/512]*512 + (userSP-1)%512] = -2; 
+SP=[PROCESS_TABLE+currPID*16+13];
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;
+[table+2*i+1]=R6;
+[[PTBR + 2*(userSP-1)/512]*512 + (userSP-1)%512] = i; 
+SP=[PROCESS_TABLE+currPID*16+13];
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;
+
+if(syscall==18) then
+alias semId R3;
+semId=[[PTBR + 2*(userSP-4)/512]*512 + (userSP-4)%512];
+alias table R4;
+table=(([PROCESS_TABLE+currPID*16+11]+1)*512)-16;
+if(semId<0||semId>7||[table+2*semId]!=-1) then
+[[PTBR + 2*(userSP-1)/512]*512 + (userSP-1)%512] = -1; 
+SP=[PROCESS_TABLE+currPID*16+13];
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;
+multipush(R0,R1,R2,R3,R4);
+R3=currPID;
+R2=[table+2*semId+1];
+R1=7;
+call MOD_0;
+multipop(R0,R1,R2,R3,R4);
+[table]=-1;
+[table+1]=-1;
+[[PTBR + 2*(userSP-1)/512]*512 + (userSP-1)%512] = 0; 
+SP=[PROCESS_TABLE+currPID*16+13];
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;

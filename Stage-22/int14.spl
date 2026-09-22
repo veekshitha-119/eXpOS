@@ -1,0 +1,80 @@
+alias userSP R1;
+userSP = SP;
+
+alias currPID R2;
+currPID = [SYSTEM_STATUS_TABLE + 1];
+
+alias syscall R3;
+syscall=[[PAGE_TABLE_BASE+currPID*20 + 2 * ((userSP - 5)/ 512)]*512+((userSP - 5) % 512)];
+
+//save SP in UPTR
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 13] = userSP;
+
+//assign SP
+SP=[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11]*512-1;
+[PROCESS_TABLE+currPID*16+9]=syscall;
+
+if(syscall==19) then
+alias  semId R4;
+alias table R5;
+semId=[[PAGE_TABLE_BASE+currPID*20 + 2 * ((userSP - 4)/ 512)]*512+((userSP - 4) % 512)];
+table=(([PROCESS_TABLE+currPID*16+11]+1)*512)-16;
+if(semId<0||semId>7||[table+semId*2]!=1) then
+[[PAGE_TABLE_BASE+currPID*20 + 2 * ((userSP - 1)/ 512)]*512+((userSP - 1) % 512)]=-1;
+SP=userSP;
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;
+alias idx R6;
+idx=[table+semId*2+1];
+while([SEMAPHORE_TABLE+idx*4]!=currPID && [SEMAPHORE_TABLE+idx*4]!=-1) do
+[PROCESS_TABLE+currPID*16+4]=WAIT_SEMAPHORE;
+[PROCESS_TABLE+currPID*16+5]=idx;
+multipush(R1,R2,R3,R4,R5,R6);
+call MOD_5;
+multipop(R1,R2,R3,R4,R5,R6);
+endwhile;
+[SEMAPHORE_TABLE+idx*4]=currPID;
+[[PAGE_TABLE_BASE+currPID*20 + 2 * ((userSP - 1)/ 512)]*512+((userSP - 1) % 512)]=0;
+SP=userSP;
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;
+
+if(syscall==20) then
+alias  semId R4;
+alias table R5;
+semId=[[PAGE_TABLE_BASE+currPID*20 + 2 * ((userSP - 4)/ 512)]*512+((userSP - 4) % 512)];
+table=(([PROCESS_TABLE+currPID*16+11]+1)*512)-16;
+if(semId<0||semId>7||[table+semId*2]!=1) then
+[[PAGE_TABLE_BASE+currPID*20 + 2 * ((userSP - 1)/ 512)]*512+((userSP - 1) % 512)]=-1;
+SP=userSP;
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;
+
+alias idx R6;
+idx=[table+semId*2+1];
+if([SEMAPHORE_TABLE+idx*4]!=-1) then
+ if([SEMAPHORE_TABLE+idx*4]!=currPID) then
+ [[PAGE_TABLE_BASE+currPID*20 + 2 * ((userSP - 1)/ 512)]*512+((userSP - 1) % 512)]=-2;
+SP=userSP;
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;
+[SEMAPHORE_TABLE+idx*4]=-1;
+alias i R7;
+i=1;
+while(i<16) do
+if([PROCESS_TABLE+i*16+4]==WAIT_SEMAPHORE && [PROCESS_TABLE+i*16+5]==idx) then
+[PROCESS_TABLE+i*16+4]=READY;
+[PROCESS_TABLE+i*16+5]=-1;
+endif;
+i=i+1;
+endwhile;
+endif;
+[[PAGE_TABLE_BASE+currPID*20 + 2 * ((userSP - 1)/ 512)]*512+((userSP - 1) % 512)]=0;
+SP=userSP;
+[PROCESS_TABLE+currPID*16+9]=0;
+ireturn;
+endif;
